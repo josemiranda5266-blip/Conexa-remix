@@ -124,15 +124,26 @@ const MainAppContent: React.FC = () => {
         {/* View Switcher based on Navigation Tabs / Admin mode */}
         {isLandingPreviewOpen ? (
           <DemandLanding onCloseLanding={() => setIsLandingPreviewOpen(false)} />
-        ) : isAdminPanelOpen ? (
+        ) : isAdminPanelOpen && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') ? (
           <div className="space-y-4">
             <button 
               onClick={() => setIsAdminPanelOpen(false)}
-              className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/60 shadow-xs"
+              className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/60 shadow-xs cursor-pointer"
             >
               ← Volver a la aplicación principal
             </button>
             <AdminPanel onOpenLandingPreview={() => setIsLandingPreviewOpen(true)} />
+          </div>
+        ) : isAdminPanelOpen ? (
+          <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-3xl p-8 shadow-md text-center space-y-3">
+            <h3 className="font-black text-lg">🛡️ Acceso Restringido</h3>
+            <p className="text-xs text-rose-700">Solo usuarios con rol Administrador pueden acceder a esta sección.</p>
+            <button 
+              onClick={() => setIsAdminPanelOpen(false)}
+              className="px-4 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl cursor-pointer"
+            >
+              Volver al Inicio
+            </button>
           </div>
         ) : (
           <>

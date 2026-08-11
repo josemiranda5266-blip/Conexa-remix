@@ -83,11 +83,17 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
-    // CONEXA RADAR Demand Opportunities
+    // CONEXA RADAR Demand Opportunities (Strictly protected - Default Deny)
     match /radar_opportunities/{opportunityId} {
-      allow read: if isAdmin() || isSignedIn();
-      allow create: if true; // Webhooks, external authorized landing forms
+      allow read: if isAdmin();
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.is_test == true);
       allow update, delete: if isAdmin();
+    }
+
+    // Audit Logs
+    match /audit_logs/{logId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false; // Immutable audit log trail
     }
   }
 }
