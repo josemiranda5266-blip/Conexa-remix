@@ -7,26 +7,38 @@ interface RoleSelectionModalProps {
   onClose: () => void;
   onSelectClient: () => void;
   onSelectProfessional: () => void;
+  onSelectAdmin?: () => void;
 }
 
 export const RoleSelectionModal: React.FC<RoleSelectionModalProps> = ({
   isOpen,
   onClose,
   onSelectClient,
-  onSelectProfessional
+  onSelectProfessional,
+  onSelectAdmin
 }) => {
-  const { currentUser } = useApp();
+  const { currentUser, switchActiveMode } = useApp();
   const [showExplanation, setShowExplanation] = useState(false);
 
   if (!isOpen) return null;
 
+  const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
   const hasPro = currentUser.hasProfessionalProfile || currentUser.isProfessional;
 
   const handleProfessionalClick = () => {
-    if (hasPro) {
+    if (hasPro || isAdmin) {
       onSelectProfessional();
     } else {
       setShowExplanation(true);
+    }
+  };
+
+  const handleAdminClick = () => {
+    if (onSelectAdmin) {
+      onSelectAdmin();
+    } else {
+      switchActiveMode('ADMIN');
+      onClose();
     }
   };
 
@@ -39,7 +51,9 @@ export const RoleSelectionModal: React.FC<RoleSelectionModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
       <div 
         id="role-selection-card"
-        className="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 sm:p-8 border border-slate-200 relative overflow-hidden"
+        className={`bg-white rounded-3xl shadow-2xl w-full p-6 sm:p-8 border border-slate-200 relative overflow-hidden transition-all ${
+          isAdmin ? 'max-w-4xl' : 'max-w-xl'
+        }`}
       >
         <button 
           onClick={handleClose}
@@ -53,18 +67,18 @@ export const RoleSelectionModal: React.FC<RoleSelectionModalProps> = ({
             <div className="text-center space-y-2 mb-6">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-bold text-xs">
                 <Sparkles size={14} className="text-blue-600" />
-                <span>Cuenta Unificada CONEXA</span>
+                <span>Selector de Modo de Uso CONEXA</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 ¿Cómo querés usar CONEXA?
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                Una misma cuenta te permite buscar servicios como Cliente y ofrecer servicios como Profesional.
+              <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+                Elegí el modo con el que querés interactuar en la plataforma. Podés cambiar de modo en cualquier momento.
               </p>
             </div>
 
-            {/* Two Large Distinct Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Distinct Mode Cards */}
+            <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
               {/* Card 1: Cliente */}
               <div 
                 onClick={onSelectClient}
@@ -132,6 +146,42 @@ export const RoleSelectionModal: React.FC<RoleSelectionModalProps> = ({
                   <ArrowRight size={15} />
                 </button>
               </div>
+
+              {/* Card 3: Administrador (Visible ONLY for ADMIN / SUPER_ADMIN) */}
+              {isAdmin && (
+                <div 
+                  onClick={handleAdminClick}
+                  className="group relative p-5 bg-gradient-to-b from-amber-50/90 via-rose-50/50 to-slate-900/10 rounded-3xl border-2 border-amber-300 hover:border-rose-600 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-3">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-600 to-rose-600 text-white flex items-center justify-center shadow-lg shadow-rose-600/30 group-hover:scale-110 transition-transform">
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold tracking-wider uppercase text-amber-900 bg-amber-100/90 px-2.5 py-0.5 rounded-full">
+                        CONTROL & RADAR
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 mt-1.5 group-hover:text-rose-700 transition-colors">
+                        🛡️ MODO ADMINISTRADOR
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                      Accedé al Centro de Control, Motor RADAR, métricas, verificaciones y auditoría.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAdminClick();
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                  >
+                    <span>ENTRAR COMO ADMIN</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Footer info banner */}

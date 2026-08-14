@@ -231,7 +231,8 @@ export const RadarTestLab: React.FC<RadarTestLabProps> = ({
             category: analysisResult.category,
             subcategory: analysisResult.subcategory,
             city,
-            limit: 3
+            limit: 3,
+            environment: currentEnvironment
           })
         });
 
@@ -239,11 +240,12 @@ export const RadarTestLab: React.FC<RadarTestLabProps> = ({
         setMatchResults(data);
       } catch (err) {
         console.error('Error en match:', err);
+        const isSim = currentEnvironment === 'simulation';
         setMatchResults({
           category: analysisResult.category || 'Electricidad',
           city: city || 'Santiago del Estero',
-          matchCount: 2,
-          rankedProfessionals: [
+          matchCount: isSim ? 2 : 0,
+          rankedProfessionals: isSim ? [
             {
               professionalId: 'pro-1',
               name: 'Ing. Carlos Mansilla',
@@ -266,7 +268,7 @@ export const RadarTestLab: React.FC<RadarTestLabProps> = ({
               isVerified: true,
               matchReasons: ['Excelente historial de servicios', 'Tiempo medio respuesta <15min']
             }
-          ]
+          ] : []
         });
       } finally {
         setIsMatching(false);
@@ -667,46 +669,72 @@ export const RadarTestLab: React.FC<RadarTestLabProps> = ({
       {/* STEP 3 OUTPUT: CONEXA MATCH RANKING */}
       {matchResults && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-md space-y-4 animate-fade-in text-xs">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
               <UserCheck className="text-emerald-600" size={18} />
               Ranking de Match CONEXA ({matchResults.rankedProfessionals.length} profesionales coincidentes)
             </h4>
-            <span className="text-slate-500 font-bold">Privacidad: Datos Sanitizados Sin PII</span>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-black px-3 py-1 rounded-xl border ${
+                currentEnvironment === 'simulation'
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+              }`}>
+                {(matchResults as any).dataSourceLabel || (currentEnvironment === 'simulation' ? 'FUENTE DE DATOS: DEMO (Simulación)' : 'FUENTE DE DATOS: FIRESTORE (Producción)')}
+              </span>
+              <span className="text-slate-500 font-bold hidden md:inline">Privacidad: Datos Sanitizados Sin PII</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {matchResults.rankedProfessionals.map((pro, idx) => (
-              <div key={pro.professionalId} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <img src={pro.avatar} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-emerald-500" />
-                    <div>
-                      <p className="font-black text-slate-900">{pro.name}</p>
-                      <p className="text-[10px] font-bold text-slate-500">{pro.professionName}</p>
-                    </div>
-                  </div>
-                  <span className="bg-emerald-100 text-emerald-900 font-black px-2.5 py-1 rounded-xl text-[11px]">
-                    Match: {pro.matchScore}%
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-600 font-medium space-y-1">
-                  <p>📍 Ubicación: <strong className="text-slate-800">{pro.locationApprox}</strong></p>
-                  <p>⭐ Trust Score: <strong className="text-emerald-700">{pro.trustScore}/100</strong></p>
-                  <p>⚡ Tiempo de respuesta estimado: <strong className="text-slate-800">&lt;10 min</strong></p>
-                </div>
-
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {pro.matchReasons.map((m, mIdx) => (
-                    <span key={mIdx} className="bg-white text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200">
-                      ✓ {m}
-                    </span>
-                  ))}
-                </div>
+          {matchResults.rankedProfessionals.length === 0 ? (
+            <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-3">
+              <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center gap-1 justify-center mx-auto">
+                <AlertTriangle size={24} />
               </div>
-            ))}
-          </div>
+              <p className="font-extrabold text-slate-900 text-sm">
+                0 profesionales reales encontrados en Firestore
+              </p>
+              <p className="text-xs text-slate-600 max-w-lg mx-auto">
+                {(matchResults as any).message || `No hay profesionales reales disponibles en Firestore para la categoría "${analysisResult?.category || 'solicitada'}" en la zona "${city}".`}
+              </p>
+              <p className="text-[11px] text-emerald-700 font-bold">
+                ✓ Comportamiento estricto de producción: No se inventan profesionales de demostración.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {matchResults.rankedProfessionals.map((pro) => (
+                <div key={pro.professionalId} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <img src={pro.avatar} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-emerald-500" />
+                      <div>
+                        <p className="font-black text-slate-900">{pro.name}</p>
+                        <p className="text-[10px] font-bold text-slate-500">{pro.professionName}</p>
+                      </div>
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-900 font-black px-2.5 py-1 rounded-xl text-[11px]">
+                      Match: {pro.matchScore}%
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 font-medium space-y-1">
+                    <p>📍 Ubicación: <strong className="text-slate-800">{pro.locationApprox}</strong></p>
+                    <p>⭐ Trust Score: <strong className="text-emerald-700">{pro.trustScore}/100</strong></p>
+                    <p>⚡ Tiempo de respuesta estimado: <strong className="text-slate-800">&lt;10 min</strong></p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {pro.matchReasons.map((m, mIdx) => (
+                      <span key={mIdx} className="bg-white text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200">
+                        ✓ {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* STEP 4 TRIGGER */}
           <div className="flex justify-end pt-2">

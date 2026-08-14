@@ -16,7 +16,7 @@ interface AppContextType {
   currentUser: UserProfile;
   setCurrentUser: (user: UserProfile) => void;
   switchUserRole: (userId: string) => void;
-  switchActiveMode: (mode: 'CLIENT' | 'PROFESSIONAL') => void;
+  switchActiveMode: (mode: 'CLIENT' | 'PROFESSIONAL' | 'ADMIN') => void;
   
   users: UserProfile[];
   categories: Category[];
@@ -90,13 +90,37 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load or initialize state
+  // Load or initialize state with safe profile sanitization
   const [users, setUsers] = useState<UserProfile[]>(() => {
     const saved = localStorage.getItem('conexa_users');
-    return saved ? JSON.parse(saved) : INITIAL_PROFILES;
+    if (!saved) return INITIAL_PROFILES;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure initial profiles like admin exist
+        const hasAdmin = parsed.some(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
+        if (!hasAdmin) {
+          const adminProfile = INITIAL_PROFILES.find(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
+          if (adminProfile) parsed.push(adminProfile);
+        }
+        return parsed;
+      }
+    } catch {
+      // Fallback if parsing fails
+    }
+    return INITIAL_PROFILES;
   });
 
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => users[0]);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    const savedActiveId = localStorage.getItem('conexa_active_user_id');
+    if (savedActiveId) {
+      const found = users.find(u => u.id === savedActiveId);
+      if (found) return found;
+    }
+    // Default to particular client user (user-particular-1)
+    const clientUser = users.find(u => u.id === 'user-particular-1');
+    return clientUser || users[0];
+  });
   const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [professions] = useState<Profession[]>(INITIAL_PROFESSIONS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
@@ -162,10 +186,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const switchUserRole = (userId: string) => {
     const found = users.find(u => u.id === userId);
-    if (found) setCurrentUser(found);
+    if (found) {
+      setCurrentUser(found);
+      localStorage.setItem('conexa_active_user_id', userId);
+    }
   };
 
-  const switchActiveMode = (mode: 'CLIENT' | 'PROFESSIONAL') => {
+  const switchActiveMode = (mode: 'CLIENT' | 'PROFESSIONAL' | 'ADMIN') => {
+    if (mode === 'ADMIN' && currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN') {
+      console.warn("Acceso denegado: Se requieren permisos de administrador para activar MODO ADMINISTRADOR.");
+      return;
+    }
     setCurrentUser(prev => {
       const updated = {
         ...prev,

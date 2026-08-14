@@ -272,44 +272,186 @@ Clasificá la oportunidad y responde ÚNICAMENTE en formato JSON con la siguient
     }
   });
 
+  // Helper function to query real professionals from Firestore REST API
+  async function queryFirestoreProfessionals(filters: { category?: string; subcategory?: string; city?: string }) {
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.VITE_FIREBASE_PROJECT_ID;
+    if (!projectId) return [];
+    try {
+      const response = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      const documents = data.documents || [];
+
+      // Parse Firestore user documents into professional profiles
+      const parsedPros = documents.map((doc: any) => {
+        const fields = doc.fields || {};
+        return {
+          id: doc.name.split('/').pop(),
+          name: fields.name?.stringValue || 'Profesional Registrado',
+          professionName: fields.professionName?.stringValue || fields.profession?.stringValue || 'Técnico Especialista',
+          isProfessional: fields.isProfessional?.booleanValue ?? (fields.role?.stringValue === 'PROFESSIONAL'),
+          isVerified: fields.isProfessionalVerified?.booleanValue ?? fields.isIdentityVerified?.booleanValue ?? false,
+          active: fields.active?.booleanValue ?? (fields.status?.stringValue !== 'inactive' && fields.status !== 'suspended'),
+          city: fields.city?.stringValue || fields.location?.mapValue?.fields?.city?.stringValue || 'Santiago del Estero',
+          province: fields.province?.stringValue || 'Santiago del Estero',
+          trustScore: fields.trustScore?.integerValue ? Number(fields.trustScore.integerValue) : 90,
+          rating: fields.rating?.doubleValue ? Number(fields.rating.doubleValue) : (fields.rating?.integerValue ? Number(fields.rating.integerValue) : 4.8),
+          availabilityStatus: fields.availabilityStatus?.stringValue || 'DISPONIBLE',
+          avatar: fields.avatar?.stringValue || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300'
+        };
+      });
+
+      // Filter only active and verified professionals
+      return parsedPros.filter((pro: any) => pro.isProfessional && pro.active && pro.isVerified);
+    } catch (err) {
+      console.warn("Error al consultar Firestore REST API:", err);
+      return [];
+    }
+  }
+
+  // Audit event logger for RADAR
+  function logRadarAuditEvent(eventType: string, payload: any) {
+    console.log(`[RADAR_AUDIT_LOG] [${new Date().toISOString()}] ${eventType}:`, JSON.stringify({
+      eventType,
+      ...payload,
+      timestamp: new Date().toISOString()
+    }));
+  }
+
   // 2. CONEXA MATCH Engine Endpoint
   app.post("/api/radar/match", rateLimiter, async (req: Request, res: Response) => {
     try {
-      const { category, subcategory, city, province, limit } = req.body;
+      const { category, subcategory, city, province, limit, environment, mode } = req.body;
+      const isSimulation = environment === 'simulation' || mode === 'simulation' || mode === 'demo';
 
-      // Mock database ranking calculation for demonstration
-      const mockMatchedPros = [
-        {
-          professionalId: "pro-1",
-          name: "Ing. Carlos Mansilla",
-          professionName: "Electricista Matriculado",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300",
-          matchScore: 96,
-          trustScore: 98,
-          locationApprox: `${city || 'Santiago del Estero'} - Centro`,
-          isVerified: true,
-          matchReasons: ["Matriculado oficial", "Ubicación inmediata (<3km)", "Tiempo de respuesta <10min"]
-        },
-        {
-          professionalId: "pro-2",
-          name: 'Marcelo "Chelo" Juárez',
-          professionName: "Plomero / Fontanero",
-          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300",
-          matchScore: 91,
-          trustScore: 94,
-          locationApprox: `${city || 'Santiago del Estero'} - Banda Norte`,
-          isVerified: true,
-          matchReasons: ["Experiencia en rubro", "Reputación 4.9 ★"]
-        }
-      ];
+      logRadarAuditEvent("RADAR_MATCH_REQUESTED", {
+        category,
+        city,
+        environment: isSimulation ? 'simulation' : 'production'
+      });
+
+      if (isSimulation) {
+        // SIMULATION MODE: Use mock database ranking calculation for demonstration
+        const mockMatchedPros = [
+          {
+            professionalId: "pro-1",
+            name: "Ing. Carlos Mansilla",
+            professionName: "Electricista Matriculado",
+            avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300",
+            matchScore: 98,
+            trustScore: 98,
+            locationApprox: `${city || 'Santiago del Estero'} - Centro (<2km)`,
+            isVerified: true,
+            matchReasons: ["Matriculado oficial CONEXA", "Ubicación inmediata (<2km)", "Tiempo de respuesta <10min"]
+          },
+          {
+            professionalId: "pro-2",
+            name: 'Marcelo "Chelo" Juárez',
+            professionName: "Plomero / Fontanero",
+            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300",
+            matchScore: 91,
+            trustScore: 94,
+            locationApprox: `${city || 'Santiago del Estero'} - Banda Norte (<5km)`,
+            isVerified: true,
+            matchReasons: ["Excelente historial de servicios", "Reputación 4.9 ★"]
+          },
+          {
+            professionalId: "pro-3",
+            name: 'Dra. María Laura Paz',
+            professionName: "Abogada",
+            avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300",
+            matchScore: 85,
+            trustScore: 99,
+            locationApprox: `${city || 'Santiago del Estero'} - Centro Tribunales`,
+            isVerified: true,
+            matchReasons: ["Consultoría verificada", "Matrícula habilitante"]
+          }
+        ];
+
+        logRadarAuditEvent("RADAR_MATCH_COMPLETED", {
+          source: 'simulation',
+          matchCount: mockMatchedPros.length
+        });
+
+        return res.json({
+          source: 'simulation',
+          dataSourceLabel: 'FUENTE DE DATOS: DEMO (Simulación)',
+          category: category || "General",
+          city: city || "Santiago del Estero",
+          matchCount: mockMatchedPros.length,
+          rankedProfessionals: mockMatchedPros.slice(0, limit || 3)
+        });
+      }
+
+      // PRODUCTION MODE: MUST QUERY FIRESTORE REAL PROFESSIONALS
+      const realPros = await queryFirestoreProfessionals({ category, subcategory, city });
+
+      if (!realPros || realPros.length === 0) {
+        logRadarAuditEvent("RADAR_MATCH_NO_RESULTS", {
+          source: 'firestore',
+          category,
+          city
+        });
+
+        // DO NOT INVENT PROFESSIONALS IN PRODUCTION
+        return res.json({
+          source: 'firestore',
+          dataSourceLabel: 'FUENTE DE DATOS: FIRESTORE (Producción)',
+          category: category || "General",
+          city: city || "Santiago del Estero",
+          matchCount: 0,
+          rankedProfessionals: [],
+          message: "No hay profesionales reales disponibles en Firestore para esta demanda en producción."
+        });
+      }
+
+      // Calculate real match score (0-100) for real Firestore professionals
+      const rankedRealPros = realPros
+        .map((pro: any) => {
+          let categoryScore = pro.professionName.toLowerCase().includes((category || '').toLowerCase()) ? 35 : 15;
+          let locationScore = pro.city.toLowerCase() === (city || 'santiago del estero').toLowerCase() ? 25 : 10;
+          let availScore = pro.availabilityStatus === 'DISPONIBLE' ? 15 : 5;
+          let trustScorePoints = Math.round((pro.trustScore || 90) * 0.15);
+          let verifyScore = pro.isVerified ? 10 : 0;
+
+          const totalScore = Math.min(100, categoryScore + locationScore + availScore + trustScorePoints + verifyScore);
+
+          return {
+            professionalId: pro.id,
+            name: pro.name,
+            professionName: pro.professionName,
+            avatar: pro.avatar,
+            matchScore: totalScore,
+            trustScore: pro.trustScore || 90,
+            locationApprox: `${pro.city} - Zona Urbana`,
+            isVerified: pro.isVerified,
+            matchReasons: [
+              `Afinidad de categoría: ${categoryScore} pts`,
+              `Ubicación ${pro.city}: ${locationScore} pts`,
+              `Verificación en regla`
+            ]
+          };
+        })
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, limit || 3);
+
+      logRadarAuditEvent("RADAR_MATCH_COMPLETED", {
+        source: 'firestore',
+        matchCount: rankedRealPros.length
+      });
 
       return res.json({
+        source: 'firestore',
+        dataSourceLabel: 'FUENTE DE DATOS: FIRESTORE (Producción)',
         category: category || "General",
         city: city || "Santiago del Estero",
-        matchCount: mockMatchedPros.length,
-        rankedProfessionals: mockMatchedPros.slice(0, limit || 5)
+        matchCount: rankedRealPros.length,
+        rankedProfessionals: rankedRealPros
       });
     } catch (err: any) {
+      console.error("Error en /api/radar/match:", err);
       return res.status(500).json({ error: "Error en CONEXA MATCH." });
     }
   });

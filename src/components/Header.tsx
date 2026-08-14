@@ -100,6 +100,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Prominent Admin Access Button (ONLY for ADMIN & SUPER_ADMIN) */}
+          {(currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') && (
+            <button
+              onClick={onOpenAdminPanel}
+              className="px-3.5 py-1.5 rounded-2xl font-black text-xs flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white shadow-lg shadow-rose-500/25 border border-amber-300/40 backdrop-blur-md active:scale-95 cursor-pointer animate-pulse"
+              title="Abrir Centro de Control Administrativo y RADAR"
+            >
+              <ShieldCheck size={16} className="text-amber-200" />
+              <span>🛡️ ADMINISTRADOR</span>
+            </button>
+          )}
+
           {/* Active Mode Primary Selector */}
           <button
             onClick={onOpenRegisterModal}

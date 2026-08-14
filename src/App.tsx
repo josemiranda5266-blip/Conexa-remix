@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { Navigation, MainTab } from './components/Navigation';
@@ -57,6 +57,19 @@ const MainAppContent: React.FC = () => {
   const [isRoleSelectionModalOpen, setIsRoleSelectionModalOpen] = useState(false);
   const [isBecomeProModalOpen, setIsBecomeProModalOpen] = useState(false);
   const [onboardingRoleMode, setOnboardingRoleMode] = useState<'CLIENT' | 'PROFESSIONAL'>('CLIENT');
+
+  // URL Hash Listener for /admin, #admin, /admin/radar
+  useEffect(() => {
+    const checkHash = () => {
+      const hash = window.location.hash || window.location.pathname;
+      if (hash.includes('admin')) {
+        setIsAdminPanelOpen(true);
+      }
+    };
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
 
   // Filter professionals list
   const filteredProfessionals = users.filter(u => {
@@ -124,17 +137,30 @@ const MainAppContent: React.FC = () => {
         {/* View Switcher based on Navigation Tabs / Admin mode */}
         {isLandingPreviewOpen ? (
           <DemandLanding onCloseLanding={() => setIsLandingPreviewOpen(false)} />
-        ) : isAdminPanelOpen && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') ? (
+        ) : (isAdminPanelOpen || currentUser.activeMode === 'ADMIN') && (currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN') ? (
           <div className="space-y-4">
-            <button 
-              onClick={() => setIsAdminPanelOpen(false)}
-              className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/60 shadow-xs cursor-pointer"
-            >
-              ← Volver a la aplicación principal
-            </button>
+            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-300/40 p-3 rounded-2xl backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full">
+                  🛡️ MODO ADMINISTRADOR ACTIVO
+                </span>
+                <span className="text-xs text-slate-700 hidden sm:inline font-medium">
+                  Estás operando en la consola de gestión global y motor RADAR.
+                </span>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsAdminPanelOpen(false);
+                  switchActiveMode('CLIENT');
+                }}
+                className="text-xs font-bold text-slate-800 hover:text-blue-700 hover:underline flex items-center gap-1 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs cursor-pointer"
+              >
+                ← Volver a Modo Cliente
+              </button>
+            </div>
             <AdminPanel onOpenLandingPreview={() => setIsLandingPreviewOpen(true)} />
           </div>
-        ) : isAdminPanelOpen ? (
+        ) : (isAdminPanelOpen || currentUser.activeMode === 'ADMIN') ? (
           <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-3xl p-8 shadow-md text-center space-y-3">
             <h3 className="font-black text-lg">🛡️ Acceso Restringido</h3>
             <p className="text-xs text-rose-700">Solo usuarios con rol Administrador pueden acceder a esta sección.</p>
@@ -782,17 +808,20 @@ const MainAppContent: React.FC = () => {
       <RoleSelectionModal
         isOpen={isRoleSelectionModalOpen}
         onClose={() => setIsRoleSelectionModalOpen(false)}
-        onSelectRole={(role) => {
+        onSelectClient={() => {
           setIsRoleSelectionModalOpen(false);
-          if (role === 'CLIENT') {
-            switchActiveMode('CLIENT');
-            setOnboardingRoleMode('CLIENT');
-            setIsOnboardingModalOpen(true);
-          } else {
-            switchActiveMode('PROFESSIONAL');
-            setOnboardingRoleMode('PROFESSIONAL');
-            setIsOnboardingModalOpen(true);
-          }
+          switchActiveMode('CLIENT');
+          setIsAdminPanelOpen(false);
+        }}
+        onSelectProfessional={() => {
+          setIsRoleSelectionModalOpen(false);
+          switchActiveMode('PROFESSIONAL');
+          setIsAdminPanelOpen(false);
+        }}
+        onSelectAdmin={() => {
+          setIsRoleSelectionModalOpen(false);
+          switchActiveMode('ADMIN');
+          setIsAdminPanelOpen(true);
         }}
       />
 
